@@ -1,0 +1,86 @@
+---
+title: "COVID19 data exploration"
+output: html_document
+author: 
+- Anass Al AMMIRI
+- Ziyad OULHAJ
+---
+
+```{r setup, include=FALSE}
+library("COVID19")
+library("tidyverse")
+library("skimr")
+cov19=covid19()
+```
+
+# Introduction
+
+Le package COVID 19 recense des données sur l'épidémie du coronavirus SARS-CoV-2 dans différents pays. Il ajoute à cela des indicateurs géographiques et des indicateurs exogènes pour faciliter l’étude de la pandémie dans sa globalité.
+
+# Données manquantes
+```{r}
+print(skim(cov19))
+```
+
+
+
+## Nombre de morts en fonction du nombre de personnes vaccinées complétement
+
+
+```{r pressure, echo=FALSE}
+cov19 %>% select(confirmed,people_fully_vaccinated,date) %>% 
+  filter(!is.na(confirmed),!is.na(people_fully_vaccinated)) %>% 
+  group_by(date )%>% 
+  summarise(count_cases=sum(confirmed),count_vaccine=sum(people_fully_vaccinated)) %>% 
+  ggplot(aes(x=count_vaccine))+
+  geom_smooth(aes(y=count_cases))
+```
+
+Le graphe pourrait nous suggérer que le nombre de cas augmente avec le taux de vaccination mais ceci n'est pas forcément vrai. La hausse du nombre de cas pourrait être une conséquence d'autres facteurs.
+
+## Nombre de morts en fonction du nombre de cas
+```{r, echo=FALSE}
+cov19 %>% select(deaths,confirmed,date) %>% 
+  filter(!is.na(deaths),!is.na(confirmed)) %>% 
+  group_by(date )%>% 
+  summarise(count_death=sum(deaths),count_cases=sum(confirmed)) %>% 
+  ggplot(aes(x=count_cases))+
+  geom_smooth(aes(y=count_death));
+```
+
+On remarque qu'il y a une tendance linéaire entre nombre de cas et nombres de morts. Cela correspond au taux de mortalité de la maladie. Essayons de la déterminer par régression linéaire :
+```{r mortality rate}
+cov19 %>% select(deaths,confirmed,date) %>% 
+  filter(!is.na(deaths),!is.na(confirmed)) %>% 
+  group_by(date )%>% 
+  summarise(count_death=sum(deaths),count_cases=sum(confirmed)) %>% 
+  lm(formula=count_death~count_cases)
+```
+Le taux de mortalité selon nos données est de 1.966%.
+
+## Classement des 10 pays ayant le plus grand nombre de cas
+```{r}
+cov19 %>% select(confirmed,iso_alpha_3) %>% 
+  filter(!is.na(confirmed)) %>% 
+  group_by(iso_alpha_3 )%>% 
+  summarize(count_cases=sum(confirmed)) %>% 
+  arrange(desc(count_cases)) %>% 
+  head(10) %>% 
+  ggplot()+geom_col(aes(x=iso_alpha_3,y=count_cases))
+```
+
+Le nombre de cas est fortement lié au nombre d'habitant du pays, classons donc les pays par taux de personnes contaminée.
+```{r}
+cov19 %>% select(confirmed,iso_alpha_3) %>% 
+  filter(!is.na(confirmed)) %>% 
+  group_by(iso_alpha_3 )%>% 
+  summarize(count_cases=sum(confirmed)) %>% 
+  left_join(world_bank_pop %>% filter(indicator=="SP.POP.TOTL") %>%select(country,"2017"),by=c("iso_alpha_3"="country")) %>% 
+  rename(pop="2017") %>% 
+  filter(!is.na(pop)) %>% 
+  mutate(prop=count_cases/pop) %>% 
+  arrange(desc(prop)) %>% 
+  head(10) %>% 
+  ggplot()+geom_col(aes(x=iso_alpha_3,y=prop))
+```
+

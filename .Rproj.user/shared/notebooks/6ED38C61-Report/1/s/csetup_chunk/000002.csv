@@ -1,0 +1,28 @@
+"0","library(""COVID19"")"
+"0","library(""tidyverse"")"
+"0","library(""skimr"")"
+"0","cov19=covid19()"
+"1","We have invested a lot of time and effort in creating COVID-19 Data Hub, please cite the following when using it:
+"
+"1","
+"
+"1","  Guidotti, E., Ardia, D., (2020), ""COVID-19 Data Hub"", Journal of Open Source Software 5(51):2376,
+  doi: 10.21105/joss.02376.
+
+A BibTeX entry for LaTeX users is
+
+  @Article{,
+    title = {COVID-19 Data Hub},
+    year = {2020},
+    doi = {10.21105/joss.02376},
+    author = {Emanuele Guidotti and David Ardia},
+    journal = {Journal of Open Source Software},
+    volume = {5},
+    number = {51},
+    pages = {2376},
+  }
+"
+"1","
+"
+"1","To hide this message use 'verbose = FALSE'.
+"

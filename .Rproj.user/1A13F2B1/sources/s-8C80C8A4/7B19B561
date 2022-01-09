@@ -1,0 +1,28 @@
+{
+    "id": "7B19B561",
+    "path": "~/R/Exploratory Data Analysis/Report.Rmd",
+    "project_path": "Report.Rmd",
+    "type": "r_markdown",
+    "hash": "1567101013",
+    "contents": "",
+    "dirty": false,
+    "created": 1641593560310.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "85,0",
+        "scrollLine": "85",
+        "last_setup_crc32": "8C80C8A46dd1913c"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1641746057,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1641746058048,
+    "read_only": false,
+    "read_only_alternatives": []
+}

@@ -1,0 +1,7 @@
+"0","cov19 %>% select(confirmed,iso_alpha_3) %>% "
+"0","  filter(!is.na(confirmed)) %>% "
+"0","  group_by(iso_alpha_3 )%>% "
+"0","  summarize(count_cases=sum(confirmed)) %>% "
+"0","  arrange(desc(count_cases)) %>% "
+"0","  head(10) %>% "
+"0","  ggplot()+geom_col(aes(x=iso_alpha_3,y=count_cases))"
