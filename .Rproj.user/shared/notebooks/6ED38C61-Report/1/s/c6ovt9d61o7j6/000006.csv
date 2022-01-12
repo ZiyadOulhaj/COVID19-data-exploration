@@ -1,8 +1,0 @@
-"0","cov19 %>% select(deaths,confirmed,date) %>% "
-"0","  filter(!is.na(deaths),!is.na(confirmed)) %>% "
-"0","  group_by(date )%>% "
-"0","  summarise(count_death=sum(deaths),count_cases=sum(confirmed)) %>% "
-"0","  ggplot(aes(x=count_cases))+"
-"0","  geom_smooth(aes(y=count_death));"
-"2","`geom_smooth()` using method = 'loess' and formula 'y ~ x'
-"
