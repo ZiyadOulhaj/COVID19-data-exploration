@@ -15,14 +15,17 @@ cov19=covid19()
 
 # Introduction
 
-Le package COVID 19 recense des données sur l'épidémie du coronavirus SARS-CoV-2 dans différents pays. Il ajoute à cela des indicateurs géographiques et des indicateurs exogènes pour faciliter l’étude de la pandémie dans sa globalité.
+Le package COVID 19 (Guidotti, E., Ardia, D., (2020), “COVID-19 Data Hub”, Journal of Open Source Software 5(51):2376, doi: 10.21105/joss.02376) recense des données sur l'épidémie du coronavirus SARS-CoV-2 dans différents pays. Il ajoute à cela des indicateurs géographiques et des indicateurs exogènes pour faciliter l’étude de la pandémie dans sa globalité.
+Une présentation des différentes variables du jeu de données est disponible sur https://covid19datahub.io/articles/docs.html.
 
+# Vaccination 
 
+On essayera ici de tirer des conclusions sur l'effet de la vaccination sur la pandémie.
 
 ## Nombre de cas en fonction du nombre de personnes vaccinées complétement
 
 
-```{r pressure, echo=FALSE}
+```{r pressure}
 cov19 %>% select(confirmed,people_fully_vaccinated,date) %>% 
   filter(!is.na(confirmed),!is.na(people_fully_vaccinated)) %>% 
   group_by(date )%>% 
@@ -32,13 +35,31 @@ cov19 %>% select(confirmed,people_fully_vaccinated,date) %>%
 
 La vaccination a un effet de réduction du nombre de cas lorsque le nombre de personnes vaccinées dépasse une certaine jauge. C'est la notion d'immunité collective qui correspond au "pourcentage d’une population donnée qui est immunisée/protégée contre une infection à partir duquel un sujet infecté introduit dans cette population va transmettre le pathogène à moins d’une personne en moyenne, amenant de fait l’épidémie à l’extinction, car le pathogène rencontre trop de sujets protégés" (Institut Pasteur).
 
+## Nombre de cas moyen en fonction de la politique de vaccination des pays
+```{r}
+cov19 %>% filter(administrative_area_level==1,!is.na(confirmed),!is.na(vaccination_policy)) %>% 
+  select(confirmed,vaccination_policy,iso_alpha_3) %>% 
+  group_by(iso_alpha_3) %>% 
+  summarize(cases=max(confirmed),politique=max(vaccination_policy)) %>% 
+  group_by(politique) %>% 
+  summarize(cas=mean(cases)) %>% 
+  ggplot(aes(x=politique,y=cas))+geom_col()
+```
+
+
+On constate que le nombre de cas moyens pour une politique de vaccination universelle pour la population est le plus grand. Ceci peut être expliqué par le fait que les pays qui ont été gravement atteint par la pandémie ont systématiquement mis à disposition des vaccins.
+
+# Mortalité de la pandémie
+
+Le jeu de données nous donne des informations sur le nombre de morts et d'hospitalisations liés à la pandémie.
+
 ## Nombre de morts en fonction du nombre de cas
-```{r, echo=FALSE}
+```{r}
 cov19 %>% select(deaths,confirmed,date) %>% 
   filter(!is.na(deaths),!is.na(confirmed)) %>% 
   group_by(date )%>% 
-  ggplot(aes(x=confirmed))+
-  geom_smooth(aes(y=deaths),method='gam',formula=y~s(x,bs="cs"));
+  ggplot(aes(x=confirmed,y=deaths))+
+  geom_smooth(method='gam',formula=y~s(x,bs="cs"))
 ```
 
 On remarque qu'il y a une tendance linéaire entre nombre de cas et nombres de morts. Cela correspond au taux de mortalité de la maladie. Essayons de la déterminer par régression linéaire :
@@ -50,6 +71,21 @@ cov19 %>% select(deaths,confirmed,date) %>%
 ```
 Le taux de mortalité selon nos données est de 1.762%.
 
+## Nombres de morts et nombre d'hospitalisations en fonction du temps en France
+```{r}
+cov19 %>%filter(administrative_area_level==1,iso_alpha_3=='FRA') %>% 
+  select(hosp,deaths,date) %>% 
+  filter(!is.na(hosp),!is.na(deaths)) %>% 
+  gather(key=type,value=count,1:2) %>% 
+  ggplot(aes(x=date,y=count,color=type))+
+  geom_line()
+```
+
+
+Il faut faire attention ici au fait que le nombre de morts est cumulative alors que le nombre d'hospitalisations ne l'est pas. On peut voir sur la figure que la baisse du nombre d'hospitalisation correspond à une croissance moins importante du nombre de morts. Ceci est logique puisqu'un nombre réduit de patients nécessitant une hospitalisation veut dire moins de cas critiques et donc de morts.
+
+# Comparaison des pays à l'égard de la pandémie  
+
 ## Classement des 10 pays ayant le plus grand nombre de cas
 ```{r}
 cov19 %>% select(confirmed,iso_alpha_3) %>% 
@@ -58,9 +94,10 @@ cov19 %>% select(confirmed,iso_alpha_3) %>%
   summarise(cases=max(confirmed)) %>% 
   arrange(desc(cases)) %>% 
   head(10) %>% 
-  ggplot()+geom_col(aes(x=iso_alpha_3,y=cases))
+  ggplot()+geom_col(aes(x=reorder(iso_alpha_3,cases),y=cases))
 ```
 
+Ces pays ont tous une population relativement grande.
 Le nombre de cas est fortement lié au nombre d'habitant du pays, classons donc les pays par taux de personnes contaminée.
 ```{r}
 cov19 %>% select(confirmed,iso_alpha_3) %>% 
@@ -73,18 +110,68 @@ cov19 %>% select(confirmed,iso_alpha_3) %>%
   mutate(prop=cases/pop) %>% 
   arrange(desc(prop)) %>% 
   head(10) %>% 
-  ggplot()+geom_col(aes(x=iso_alpha_3,y=prop))
+  ggplot()+geom_col(aes(x=reorder(iso_alpha_3,prop),y=prop))
 ```
+
+Essayons de voir l'indice de réactivité des gouvernements de ces pays, et de la France pour comperer, face à la pandémie.
+```{r}
+cov19 %>% filter(iso_alpha_3 %in% c('MDV','CZE','SVN','SVK','GEO','ABW','GIB','SYC','MNE','AND','FRA'),!is.na(government_response_index)) %>% 
+  select(iso_alpha_3,government_response_index) %>% 
+  group_by(iso_alpha_3) %>% 
+  summarize(réactivité=mean(government_response_index))
+  
+```
+
+On remarque que le jeu de données n'inclut pas l'indice en question de certains de ces pays. Comme on l'aurait deviné, l'indice se ces pays est en moyenne moins de celui de la France.
+Intéressons nous au classement des pays par rapport à cet indice.
+
+## Classement des 10 pays les moins réactifs en moyenne suite à la pandémie
+```{r}
+cov19 %>% filter(administrative_area_level==1) %>% 
+  select(government_response_index,iso_alpha_3) %>% 
+  filter(!is.na(government_response_index)) %>% 
+  group_by(iso_alpha_3) %>% 
+  summarize(response=mean(government_response_index)) %>% 
+  arrange(response) %>% 
+  head(10) %>% 
+  ggplot(aes(x=reorder(iso_alpha_3,response),y=response))+geom_col()
+  
+```
+
+
+#Situation en France
 
 ## Évolution des cas et du confinement en fonction du temps en France
 
 ```{r}
 cov19 %>% filter(iso_alpha_3=='FRA') %>% 
   select(confirmed,stay_home_restrictions,date) %>% 
-  filter(!is.na(confirmed),!is.na(stay_home_restrictions),!stay_home_restrictions<0) %>% 
-  ggplot(aes(x=date))+geom_line(aes(y=confirmed))+geom_area(aes(y=stay_home_restrictions*1.2e+07),fill="#9898fb",alpha=0.3)
+  filter(!is.na(confirmed),!is.na(stay_home_restrictions)) %>% 
+  ggplot(aes(x=date))+geom_line(aes(y=confirmed))+geom_area(aes(y=abs(stay_home_restrictions*1.2e+07)),fill="#9898fb",alpha=0.3)
 ```
 
 
 On constate que les périodes de confinement sont celles qui ont connues une forte grimpe dans le nombre de cas. On peut le voir d'une manière plus positive : les périodes qu'on a identifié comme nécessitant un confinement se sont bien avérées être dangereuses.
 
+## Réactivité du gouvernement français en fonction du temps 
+```{r}
+cov19 %>% filter(administrative_area_level==1,iso_alpha_3=='FRA') %>% 
+  select(date,government_response_index) %>% 
+  filter(!is.na(date),!is.na(government_response_index)) %>% 
+  ggplot(aes(y=government_response_index,x=date))+geom_smooth(method = 'loess' , formula= y ~ x)+geom_point()
+```
+
+
+On remarque que la réactivité du gouvernement français a grimpé lors du premier confinement et continue de fluctuer.
+
+
+## Nombre de cas et obligation du port du masque en France en fonction du temps
+
+```{r}
+cov19 %>% filter(administrative_area_level==1,iso_alpha_3=='FRA') %>%
+  select(date,confirmed,facial_coverings)%>%
+  filter(!is.na(confirmed),!is.na(facial_coverings)) %>% 
+  ggplot(aes(x=date))+geom_line(aes(y=confirmed))+geom_area(aes(y=abs(facial_coverings*5.2e+06)),fill="#9898fb",alpha=0.3)
+```
+
+On remarque que les périodes où le port du masque était plus stricts ont connu le plus de cas. Ceci est semblable à la courbe précédente : la hausse des cas a obligé le gouvernement à prendre ce genre de mesures.
