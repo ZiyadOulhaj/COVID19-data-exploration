@@ -26,7 +26,7 @@ On essayera ici de tirer des conclusions sur l'effet de la vaccination sur la pa
 ## Nombre de cas en fonction du nombre de personnes vaccinées complétement
 
 
-```{r pressure}
+```{r }
 cov19 %>% select(confirmed,people_fully_vaccinated,date) %>% 
   filter(!is.na(confirmed),!is.na(people_fully_vaccinated)) %>% 
   group_by(date )%>% 
@@ -48,6 +48,7 @@ cov19 %>% filter(administrative_area_level==1,!is.na(confirmed),!is.na(vaccinati
 ```
 
 
+L'indice en abcisse croît avec l'accessibilité du vaccin à une plus grande portion de la population.
 On constate que le nombre de cas moyens pour une politique de vaccination universelle pour la population est le plus grand. Ceci peut être expliqué par le fait que les pays qui ont été gravement atteint par la pandémie ont systématiquement mis à disposition des vaccins.
 
 # Mortalité de la pandémie
@@ -86,6 +87,29 @@ cov19 %>%filter(administrative_area_level==1,iso_alpha_3=='FRA') %>%
 Il faut faire attention ici au fait que le nombre de morts est cumulative alors que le nombre d'hospitalisations ne l'est pas. On peut voir sur la figure que la baisse du nombre d'hospitalisation correspond à une croissance moins importante du nombre de morts. Ceci est logique puisqu'un nombre réduit de patients nécessitant une hospitalisation veut dire moins de cas critiques et donc de morts.
 
 # Comparaison des pays à l'égard de la pandémie  
+
+## Vue globale
+
+
+```{r}
+ggplot() +
+  geom_map(
+    data = world, map = world,
+    aes(long, lat, map_id = region),
+    color = "white", fill = "lightgray", size = 0.1
+  ) +
+  geom_point(
+    data = cov19 %>% filter(!is.na(confirmed),administrative_area_level==1,!is.na(longitude),!is.na(latitude)) %>% 
+  group_by(iso_alpha_3) %>% 
+  summarize(cases=max(confirmed),latitude=max(latitude),longitude=max(longitude)),
+    aes(longitude, latitude, color = cases),
+    alpha = 0.7
+  ) +scale_colour_gradientn(colours=rainbow(4))
+```
+
+
+On remarque que les états unis se distingue des autres pays en ce qui concerne le nombre de cas, elle est suivie par l'inde puis d'autres pays européens. 
+
 
 ## Classement des 10 pays ayant le plus grand nombre de cas
 ```{r}
@@ -127,19 +151,20 @@ On remarque que le jeu de données n'inclut pas l'indice en question pour certai
 
 Intéressons nous maintenant au classement des pays par rapport à cet indice.
 
-## Classement des 10 pays les moins réactifs en moyenne suite à la pandémie
+## Classement des 10 pays les plus réactifs en moyenne suite à la pandémie
 ```{r}
 cov19 %>% filter(administrative_area_level==1) %>% 
   select(government_response_index,iso_alpha_3) %>% 
   filter(!is.na(government_response_index)) %>% 
   group_by(iso_alpha_3) %>% 
   summarize(response=mean(government_response_index)) %>% 
-  arrange(response) %>% 
+  arrange(desc(response)) %>% 
   head(10) %>% 
   ggplot(aes(x=reorder(iso_alpha_3,response),y=response))+geom_col()
   
 ```
 
+Le gouvernement qui a eu une plus grande réactivité en moyenne est l'Italie qui a eu un début de pandémie très dur. 
 
 # Situation en France
 
@@ -152,7 +177,7 @@ cov19 %>% filter(iso_alpha_3=='FRA') %>%
   ggplot(aes(x=date))+geom_line(aes(y=confirmed))+geom_area(aes(y=abs(stay_home_restrictions*1.2e+07)),fill="#9898fb",alpha=0.3)
 ```
 
-
+La zone en bleue désigne la période du confinement alors que la zone semi-remplie désigne la période de confinement à restrictions réduites.
 On constate que les périodes de confinement sont celles qui ont connues une forte grimpe dans le nombre de cas. On peut le voir d'une manière plus positive : les périodes qu'on a identifié comme nécessitant un confinement se sont bien avérées être dangereuses.
 
 ## Réactivité du gouvernement français en fonction du temps 
@@ -166,35 +191,10 @@ cov19 %>% filter(administrative_area_level==1,iso_alpha_3=='FRA') %>%
 
 On remarque que la réactivité du gouvernement français a grimpé lors du premier confinement et continue de fluctuer.
 
+# Conclusions
 
-## Nombre de cas et obligation du port du masque en France en fonction du temps
-
-```{r}
-cov19 %>% filter(administrative_area_level==1,iso_alpha_3=='FRA') %>%
-  select(date,confirmed,facial_coverings)%>%
-  filter(!is.na(confirmed),!is.na(facial_coverings)) %>% 
-  ggplot(aes(x=date))+geom_line(aes(y=confirmed))+geom_area(aes(y=abs(facial_coverings*5.2e+06)),fill="#9898fb",alpha=0.3)
-```
-
-On remarque que les périodes où le port du masque était plus stricts ont connu le plus de cas. Ceci est semblable à la courbe précédente : la hausse des cas a obligé le gouvernement à prendre ce genre de mesures.
-
-# Vue globale
-
-
-
-```{r}
-ggplot() +
-  geom_map(
-    data = world, map = world,
-    aes(long, lat, map_id = region),
-    color = "white", fill = "lightgray", size = 0.1
-  ) +
-  geom_point(
-    data = cov19 %>% filter(!is.na(confirmed),administrative_area_level==1,!is.na(longitude),!is.na(latitude)) %>% 
-  group_by(iso_alpha_3) %>% 
-  summarize(cases=max(confirmed),latitude=max(latitude),longitude=max(longitude)),
-    aes(longitude, latitude, color = cases),
-    alpha = 0.7
-  ) +scale_colour_gradientn(colours=rainbow(4))
-```
-
+- On constate l'effet de la vaccination sur nos données.
+- La maladie du COVID a une mortalité realtivement réduite mais est dangereuse dans son effet de propagation.
+- Le nombre de cas diffère d'un pays à l'autre en fonction des mesures prises par les gouvernements.
+- Le confinement en France a été en vigueur pendant les périodes les plus dangereuses dans la propagation du virus.
+- Le gouvernement français reste toujours réactif face à la pandémie.
