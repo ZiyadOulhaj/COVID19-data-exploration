@@ -10,6 +10,7 @@ author:
 library("COVID19")
 library("tidyverse")
 library("skimr")
+world <- map_data("world")
 cov19=covid19()
 ```
 
@@ -98,7 +99,7 @@ cov19 %>% select(confirmed,iso_alpha_3) %>%
 ```
 
 Ces pays ont tous une population relativement grande.
-Le nombre de cas est fortement lié au nombre d'habitant du pays, classons donc les pays par taux de personnes contaminée.
+Le nombre de cas est fortement lié au nombre d'habitant du pays, classons donc les pays par taux de personnes contaminées.
 ```{r}
 cov19 %>% select(confirmed,iso_alpha_3) %>% 
   filter(!is.na(confirmed)) %>% 
@@ -113,7 +114,7 @@ cov19 %>% select(confirmed,iso_alpha_3) %>%
   ggplot()+geom_col(aes(x=reorder(iso_alpha_3,prop),y=prop))
 ```
 
-Essayons de voir l'indice de réactivité des gouvernements de ces pays, et de la France pour comperer, face à la pandémie.
+Essayons de voir l'indice de réactivité des gouvernements de ces pays, et de la France pour comparer, face à la pandémie.
 ```{r}
 cov19 %>% filter(iso_alpha_3 %in% c('MDV','CZE','SVN','SVK','GEO','ABW','GIB','SYC','MNE','AND','FRA'),!is.na(government_response_index)) %>% 
   select(iso_alpha_3,government_response_index) %>% 
@@ -122,8 +123,9 @@ cov19 %>% filter(iso_alpha_3 %in% c('MDV','CZE','SVN','SVK','GEO','ABW','GIB','S
   
 ```
 
-On remarque que le jeu de données n'inclut pas l'indice en question de certains de ces pays. Comme on l'aurait deviné, l'indice se ces pays est en moyenne moins de celui de la France.
-Intéressons nous au classement des pays par rapport à cet indice.
+On remarque que le jeu de données n'inclut pas l'indice en question pour certains de ces pays. Comme on l'aurait deviné, l'indice de ces pays est en moyenne moins que celui de la France.
+
+Intéressons nous maintenant au classement des pays par rapport à cet indice.
 
 ## Classement des 10 pays les moins réactifs en moyenne suite à la pandémie
 ```{r}
@@ -139,7 +141,7 @@ cov19 %>% filter(administrative_area_level==1) %>%
 ```
 
 
-#Situation en France
+# Situation en France
 
 ## Évolution des cas et du confinement en fonction du temps en France
 
@@ -175,3 +177,24 @@ cov19 %>% filter(administrative_area_level==1,iso_alpha_3=='FRA') %>%
 ```
 
 On remarque que les périodes où le port du masque était plus stricts ont connu le plus de cas. Ceci est semblable à la courbe précédente : la hausse des cas a obligé le gouvernement à prendre ce genre de mesures.
+
+# Vue globale
+
+
+
+```{r}
+ggplot() +
+  geom_map(
+    data = world, map = world,
+    aes(long, lat, map_id = region),
+    color = "white", fill = "lightgray", size = 0.1
+  ) +
+  geom_point(
+    data = cov19 %>% filter(!is.na(confirmed),administrative_area_level==1,!is.na(longitude),!is.na(latitude)) %>% 
+  group_by(iso_alpha_3) %>% 
+  summarize(cases=max(confirmed),latitude=max(latitude),longitude=max(longitude)),
+    aes(longitude, latitude, color = cases),
+    alpha = 0.7
+  ) +scale_colour_gradientn(colours=rainbow(4))
+```
+
