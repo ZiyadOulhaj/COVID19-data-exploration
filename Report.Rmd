@@ -1,20 +1,33 @@
 ---
 title: "COVID19 data exploration"
-output: html_document
 author: 
 - Anass Al AMMIRI
 - Ziyad OULHAJ
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+    toc: true # table of content true 
+    toc_depth: 2 
 ---
 
+
+
 ```{r setup, include=FALSE}
-library("COVID19")
-library("tidyverse")
-library("skimr")
+libraries <-c("COVID19", "tidyverse", "skimr", "prettydoc", "rnaturalearth", "sf","tmap" ,"sf", "maps","viridis","readr","ggplot2","rnaturalearth","ggpubr","kableExtra")
+
+list.of.packages <- libraries
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages ,repos ="http://cran.us.r-project.org")
+
+lapply(libraries, library, character.only = TRUE)
+
 world <- map_data("world")
 cov19=covid19()
 ```
 
 # Introduction
+
 
 Le package COVID 19 (Guidotti, E., Ardia, D., (2020), “COVID-19 Data Hub”, Journal of Open Source Software 5(51):2376, doi: 10.21105/joss.02376) recense des données sur l'épidémie du coronavirus SARS-CoV-2 dans différents pays. Il ajoute à cela des indicateurs géographiques et des indicateurs exogènes pour faciliter l’étude de la pandémie dans sa globalité.
 Une présentation des différentes variables du jeu de données est disponible sur https://covid19datahub.io/articles/docs.html.
@@ -90,6 +103,37 @@ Il faut faire attention ici au fait que le nombre de morts est cumulative alors 
 
 ## Vue globale
 
+Pour avoir une vue d'ensemble de la situation de Covid dans le monde entier, nous utilisons différentes cartes, décrivant la situation récente et la situation générale.
+
+```{r,   results='hide', warning=FALSE, message=FALSE}
+
+world_rnatural = rnaturalearth::ne_download(returnclass = "sf")
+world_iso = world_rnatural %>% 
+  select(NAME_LONG, ISO_A3_EH, POP_EST, CONTINENT)
+world_projected = world_iso %>% 
+  st_transform("+proj=moll")
+
+```
+
+
+```{r}
+w = dplyr::left_join(world_projected, cov19, by = c("ISO_A3_EH"= "iso_alpha_3"))
+
+#nous n'utilisons pas les données les plus récentes 
+#car elles ne sont pas disponibles pour certains pays.
+w_30_days_ago = w %>% 
+  filter(date == max(date, na.rm = T) - 30)
+```
+
+```{r}
+plot(w_30_days_ago["deaths"])
+```
+
+
+Nous pouvons constater que certains pays se distinguent des autres. Les États-Unis d'Amérique, par exemple, ont beaucoup plus de cas de décès que les autres, suivis par le Brésil et l'Inde. Viennent ensuite les autres pays avec des variations différentes mais clairement dans une catégorie de décès moins importante.
+
+Si vous essayez de voir une carte similaire mais avec le nombre de cas confirmés :
+
 
 ```{r}
 ggplot() +
@@ -108,7 +152,35 @@ ggplot() +
 ```
 
 
-On remarque que les états unis se distingue des autres pays en ce qui concerne le nombre de cas, elle est suivie par l'inde puis d'autres pays européens. 
+On remarque ici aussi que les états unis se distingue des autres pays en ce qui concerne le nombre de cas, elle est suivie par l'inde puis le brésil puis d'autres pays européens. 
+
+
+
+```{r}
+g = st_graticule(w_30_days_ago)
+tm_shape(g) +
+  tm_lines(col = "grey") +
+  tm_shape(w_30_days_ago) +
+  tm_polygons(
+    c("deaths", "confirmed"),
+    palette = "viridis",
+    style = "order"
+    )  +
+  tm_layout(legend.position = c(0.01, 0)) +
+  tm_shape(w_30_days_ago) +
+  tm_dots(
+    col = c("red", "green"),
+    size = c("deaths", "confirmed"),
+    palette = "viridis"
+    )
+```
+
+
+
+On met de côté les deux cartes précédentes pour avoir des comparaisons plus claires. Pour surmonter le problème de la sous-représentation des petites zones (qui est lié à l'utilisation des cartes choroplèthes), nous utilisons la taille des points comme représentation supplémentaire.
+
+
+
 
 
 ## Classement des 10 pays ayant le plus grand nombre de cas
@@ -190,6 +262,177 @@ cov19 %>% filter(administrative_area_level==1,iso_alpha_3=='FRA') %>%
 
 
 On remarque que la réactivité du gouvernement français a grimpé lors du premier confinement et continue de fluctuer.
+
+## Situation par région
+
+```{r , hide = TRUE}
+
+data_france <- COVID19::covid19("FRA", level = 3, verbose = FALSE)
+#Data_geo :
+url <- "https://biogeo.ucdavis.edu/data/gadm3.6/gpkg/gadm36_FRA_gpkg.zip"
+zip <- tempfile()
+download.file(url, destfile = zip)
+exdir <- tempfile()
+unzip(zip, exdir = exdir)
+file <- paste0(exdir, "/gadm36_FRA.gpkg")
+```
+```{r,results='hide', warning=FALSE, message=FALSE}
+g <- st_read(file, layer = "gadm36_FRA_2")
+```
+```{r}
+data_france <- data_france[
+  data_france$date == "2021-11-15" ,]
+gdata_france <- right_join(g, data_france, by = c("GID_2" = "key_gadm"))
+```
+```{r}
+plot(gdata_france["confirmed"],main="Nombre de cas confirmés en France par département", logz = TRUE)
+
+```
+
+
+
+```{r}
+plot(gdata_france["population"],main="Nombre d'habitants en France par département", logz = TRUE)
+```
+
+La taille de la population est liée au nombre de cas confirmés. Si on va plus loin pour étudier cette corrélation entre le nombre de cas par département et la taille de la population, nous constatons qu'elle est fortement corrélée en France. Mais ce constat n'est pas vrai pour tous les pays. Et c'est ce que nous avons vu auparavant avec des pays comme la Chine.
+
+
+
+```{r}
+
+cov19_corr <- select(data_france,population,confirmed,date,iso_alpha_3)  
+cov19_corr <- filter(cov19_corr, !is.na(confirmed),!is.na(population))
+cov19_corr <- filter(cov19_corr,date == max(date, na.rm = T) - 30)
+
+ggscatter(cov19_corr, x = "population", y = "confirmed", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "La population par département", ylab = "Nombre de cas confirmés")
+```
+
+A l'échelle mondiale :
+
+```{r}
+
+cov19_corr <- select(cov19,population,confirmed,date,iso_alpha_3)
+cov19_corr <- filter(cov19_corr, !is.na(confirmed),!is.na(population))
+cov19_corr <- filter(cov19_corr,date == max(date, na.rm = T) - 30)
+
+ggscatter(cov19_corr, x = "population", y = "confirmed", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "Population", ylab = "Nombre de cas confirmés")
+```
+
+
+
+
+
+# Correlations :
+
+
+
+Même si nous ne disposons pas de l'âge dans notre base de données, nous pouvons essayer de voir comment il affecte le nombre de décès (sachant que les personnes âgées sont plus susceptibles de mourir que les jeunes, d'après COVID-19). 
+
+La protection des personnes âgées (**elderly_people_protection**)  est un facteur qui est égal à : 0 si aucune mesure n'a été prise. 1 : Mesures d'isolement, d'hygiène et de restriction des visites recommandées. 2 : Restrictions étroites en matière d'isolement, d'hygiène dans les EHPAD, certaines limitations concernant les visiteurs extérieurs et/ou des restrictions protégeant les personnes âgées à domicile. Et 3 : Restrictions étendues en matière d'isolement et d'hygiène dans les EFSLD, interdiction de tous les visiteurs extérieurs non essentiels, et/ou obligation pour toutes les personnes âgées de rester chez elles et de ne pas en sortir, à quelques exceptions près, et de ne recevoir aucun visiteur extérieur. Notez que les valeurs négatives -1, -2, 3 sont utilisées pour identifier les politiques qui représentent la meilleure estimation de la politique en vigueur, mais peuvent ne pas représenter le statut réel. 
+
+```{r}
+cov19_corr <- select(cov19,deaths,elderly_people_protection,date,iso_alpha_3)
+cov19_corr <- filter(cov19_corr, !is.na(deaths),!is.na(elderly_people_protection))
+cov19_corr <- filter(cov19_corr,date == max(date, na.rm = T) - 30)
+cov19_corr <- group_by(cov19_corr,elderly_people_protection)
+cov19_corr$elderly_people_protection <- as.character(cov19_corr$elderly_people_protection)
+
+box_plot <- ggplot(cov19_corr, aes(x = elderly_people_protection, y = deaths, color = elderly_people_protection))+  scale_y_continuous(limits = quantile(cov19_corr$deaths, c(0.0, 0.8)))
+
+box_plot <- box_plot + geom_boxplot(outlier.shape = NA)  +
+    stat_summary(fun= mean,
+        geom = "point",
+        size = 3,
+        color = "steelblue") +
+    theme_classic()
+
+box_plot
+```
+
+Comme nous pouvons le voir sur le diagramme en boîte, ce qui est associé à un plus grand nombre de décès est le fait d'avoir des restrictions théoriques qui ne sont pas appliquées dans la vie réelle.  Nous pouvons également constater que plus il y a de restrictions, plus il y a de décès. Cela ne signifie pas que les restrictions ne fonctionnent pas, mais que les restrictions sont généralement mises en place après la propagation du virus et lorsque les personnes âgées y sont déjà exposées. Nous pouvons également constater qu'il est préférable d'avoir des restrictions (en moyenne) 1 que de ne pas en avoir. Et généralement, nous ne pouvons pas tirer de conclusions fortes à partir de cela en raison des grandes valeurs aberrantes (outliers).
+
+
+```{r}
+
+cov19_corr <- select(cov19,deaths,elderly_people_protection,date,iso_alpha_3)
+cov19_corr <- filter(cov19_corr, !is.na(deaths),!is.na(elderly_people_protection))
+cov19_corr <- filter(cov19_corr,date == max(date, na.rm = T) - 30)
+cov19_corr["elderly_people_protection"] <- lapply(cov19_corr["elderly_people_protection"],  abs)
+cov19_corr <- group_by(cov19_corr,elderly_people_protection)
+cov19_corr$elderly_people_protection <- as.character(cov19_corr$elderly_people_protection)
+
+box_plot <- ggplot(cov19_corr, aes(x = elderly_people_protection, y = deaths, fill=elderly_people_protection))+  scale_y_continuous(limits = quantile(cov19_corr$deaths, c(0.0, 0.85)))
+
+box_plot <- box_plot + geom_boxplot(outlier.shape = NA)  +
+    stat_summary(fun= mean,
+        geom = "point",
+        size = 3,
+        color = "steelblue") +
+    theme_classic()
+
+box_plot
+
+```
+
+
+
+```{r, hide=TRUE}
+# Nous aurions pu aller plus loin et appliquer l'ANOVA pour obtenir des résultats statistiques intéressants ici, mais nous n'avons pas les deux conditions nécessaires car les observations ne sont pas indépendantes des niveaux de facteurs et les données ne sont pas normalement distribuées.
+
+res.aov <- aov(deaths ~ elderly_people_protection, data = cov19_corr)
+# Summary of the analysis
+summary(res.aov)
+
+```
+
+
+
+Pour la variable testing_policy , nous avons soit 0 : pas de politique de test, 1 : seulement ceux qui à la fois (a) ont des symptômes ET (b) répondent à des critères spécifiques (par exemple les travailleurs clés, admis à l'hôpital, en contact avec un cas connu, de retour de l'étranger). 2 : dépistage de toute personne présentant des symptômes de Covid-19. 3 : test public ouvert (par exemple, test "drive through" accessible aux personnes asymptomatiques).
+
+```{r}
+
+cov19_corr <- select(cov19,confirmed,testing_policy,date,iso_alpha_3)
+cov19_corr <- filter(cov19_corr, !is.na(confirmed),!is.na(testing_policy))
+cov19_corr <- filter(cov19_corr,date == max(date, na.rm = T) - 30)
+cov19_corr["testing_policy"] <- lapply(cov19_corr["testing_policy"],  abs)
+cov19_corr <- group_by(cov19_corr,testing_policy)
+cov19_corr$testing_policy <- as.character(cov19_corr$testing_policy)
+
+box_plot <- ggplot(cov19_corr, aes(x = testing_policy, y = confirmed, fill=testing_policy))+  scale_y_continuous(limits = quantile(cov19_corr$confirmed, c(0.0, 0.9)))
+
+box_plot <- box_plot + geom_boxplot(outlier.shape = NA)  +
+    stat_summary(fun= mean,
+        geom = "point",
+        size = 3,
+        color = "steelblue") +
+    theme_classic()
+
+box_plot
+
+```
+
+Nous pouvons voir qu'il est préférable d'avoir un test public ouvert plutôt qu'un test limité. Mais si nous voyons testing_policy : 0 ou testing_policy :1, cela montre que le nombre de cas confirmés est plus faible. Nous devons faire attention ici au nombre d'éléments dans chaque catégorie. Par exemple, il n'y a qu'un seul pays sans politique de test, et il n'y a que 18 pays dans la catégorie 1. Ainsi, dans ce cas, le nombre de cas est davantage lié à d'autres variables comme la taille de la population, comme nous l'avons vu précédemment. Et dans certains pays avec une politique de test, d'autres restrictions ont été prises, par exemple des restrictions de mouvement interne et international.
+
+```{r}
+dt <-  table(cov19_corr$testing_policy)
+
+dt
+
+dt  %>%
+  kbl() %>%
+  kable_styling()
+```
+
+
+
+
 
 # Conclusions
 
